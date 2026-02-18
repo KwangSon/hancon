@@ -1,284 +1,390 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>HanCon: Secure HWP Converter</title>
-    
+
     <script src="https://cdn.tailwindcss.com"></script>
-    
+
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
-    
+
     <script src="https://unpkg.com/lucide@latest"></script>
 
     <style>
-        /* 커스텀 애니메이션 및 스크롤바 */
-        .fade-in { animation: fadeIn 0.3s ease-in-out; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        
-        /* 로그 창 스크롤바 커스텀 */
-        #log-terminal::-webkit-scrollbar { width: 8px; }
-        #log-terminal::-webkit-scrollbar-track { background: #1e293b; }
-        #log-terminal::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+      /* 커스텀 애니메이션 및 스크롤바 */
+      .fade-in {
+        animation: fadeIn 0.3s ease-in-out;
+      }
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      /* 로그 창 스크롤바 커스텀 */
+      #log-terminal::-webkit-scrollbar {
+        width: 8px;
+      }
+      #log-terminal::-webkit-scrollbar-track {
+        background: #1e293b;
+      }
+      #log-terminal::-webkit-scrollbar-thumb {
+        background: #475569;
+        border-radius: 4px;
+      }
     </style>
-</head>
-<body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col items-center justify-center p-4 font-sans">
-
-    <main class="w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200 fade-in">
-        
-        <header class="bg-gradient-to-r from-slate-800 to-slate-900 text-white p-8 text-center relative">
-            <h1 class="text-3xl font-extrabold tracking-tight">HanCon <span class="text-blue-400">Converter</span></h1>
-            <p class="text-slate-400 mt-2 text-sm">서버 업로드 없는 100% 브라우저 로컬 변환기</p>
-            <div class="absolute top-4 right-4">
-                <span class="bg-blue-900 text-blue-200 text-xs px-2 py-1 rounded border border-blue-700">Wasm Powered</span>
-            </div>
-        </header>
-
-        <div class="p-8">
-            
-            <div id="upload-view" class="transition-all duration-300">
-                <div id="drop-zone" 
-                     class="border-4 border-dashed border-slate-300 rounded-xl p-12 text-center hover:border-blue-500 hover:bg-blue-50 transition-all cursor-pointer group relative">
-                    
-                    <input type="file" id="file-input" class="hidden" accept=".hwp, .hwpx">
-                    
-                    <div class="flex flex-col items-center space-y-4">
-                        <div class="p-4 bg-slate-100 rounded-full group-hover:bg-white transition-colors">
-                            <i data-lucide="upload-cloud" class="w-12 h-12 text-slate-400 group-hover:text-blue-500"></i>
-                        </div>
-                        
-                        <div>
-                            <p class="text-xl font-bold text-slate-700">파일을 여기에 드롭하세요</p>
-                            <p class="text-slate-500 text-sm mt-1">.hwp 또는 .hwpx 파일 지원</p>
-                        </div>
-
-                        <div class="w-full border-t border-slate-200 my-4"></div>
-
-                        <button id="select-btn" 
-                                class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg shadow-lg hover:shadow-blue-500/30 transition-all flex items-center gap-2">
-                            <i data-lucide="folder-search" class="w-5 h-5"></i>
-                            PC에서 파일 찾기
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <div id="process-view" class="hidden flex-col space-y-6 fade-in">
-                
-                <div class="flex justify-between items-end">
-                    <div>
-                        <h3 class="text-lg font-bold text-slate-800">변환 진행 중...</h3>
-                        <p id="current-task" class="text-sm text-slate-500">문서 구조를 분석하고 있습니다.</p>
-                    </div>
-                    <span id="progress-percent" class="text-2xl font-bold text-blue-600">0%</span>
-                </div>
-
-                <div class="w-full bg-slate-200 rounded-full h-4 overflow-hidden shadow-inner">
-                    <div id="progress-bar" 
-                         class="bg-gradient-to-r from-blue-500 to-blue-600 h-4 rounded-full transition-all duration-300 ease-out" 
-                         style="width: 0%"></div>
-                </div>
-
-                <div class="bg-slate-900 rounded-lg p-4 shadow-inner border border-slate-700">
-                    <div class="flex items-center gap-2 mb-2 border-b border-slate-700 pb-2">
-                        <div class="w-3 h-3 rounded-full bg-red-500"></div>
-                        <div class="w-3 h-3 rounded-full bg-yellow-500"></div>
-                        <div class="w-3 h-3 rounded-full bg-green-500"></div>
-                        <span class="text-xs text-slate-400 ml-2">Console Output</span>
-                    </div>
-                    <div id="log-terminal" class="h-32 overflow-y-auto font-mono text-xs space-y-1 text-green-400">
-                        <p class="text-slate-500">$ waiting for input...</p>
-                    </div>
-                </div>
-            </div>
-
-            <div id="result-view" class="hidden text-center py-8 fade-in">
-                
-                <div id="success-case" class="hidden space-y-6">
-                    <div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto">
-                        <i data-lucide="check" class="w-10 h-10 text-green-600"></i>
-                    </div>
-                    <div>
-                        <h2 class="text-2xl font-bold text-slate-800">변환 완료!</h2>
-                        <p class="text-slate-500 mt-2">파일이 자동으로 다운로드되었습니다.</p>
-                    </div>
-                    <button onclick="location.reload()" 
-                            class="text-slate-500 hover:text-slate-800 underline decoration-slate-300 underline-offset-4 hover:decoration-slate-800 transition-all">
-                        다른 파일 변환하기
-                    </button>
-                </div>
-
-                <div id="error-case" class="hidden space-y-6">
-                    <div class="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto">
-                        <i data-lucide="alert-triangle" class="w-10 h-10 text-red-600"></i>
-                    </div>
-                    <div>
-                        <h2 class="text-2xl font-bold text-slate-800">변환 실패</h2>
-                        <p id="error-reason" class="text-red-500 mt-2 font-medium bg-red-50 py-2 px-4 rounded inline-block">
-                            알 수 없는 오류
-                        </p>
-                    </div>
-                    <button onclick="location.reload()" class="bg-slate-800 text-white px-6 py-2 rounded-lg hover:bg-slate-900 transition">
-                        다시 시도하기
-                    </button>
-                </div>
-            </div>
-
+  </head>
+  <body
+    class="bg-slate-100 text-slate-800 min-h-screen flex flex-col items-center justify-center p-4 font-sans"
+  >
+    <main
+      class="w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200 fade-in"
+    >
+      <header
+        class="bg-gradient-to-r from-slate-800 to-slate-900 text-white p-8 text-center relative"
+      >
+        <h1 class="text-3xl font-extrabold tracking-tight">
+          HanCon <span class="text-blue-400">Converter</span>
+        </h1>
+        <p class="text-slate-400 mt-2 text-sm">
+          서버 업로드 없는 100% 브라우저 로컬 변환기
+        </p>
+        <div class="absolute top-4 right-4">
+          <span
+            class="bg-blue-900 text-blue-200 text-xs px-2 py-1 rounded border border-blue-700"
+            >Wasm Powered</span
+          >
         </div>
+      </header>
+
+      <div class="p-8">
+        <div id="upload-view" class="transition-all duration-300">
+          <div
+            id="drop-zone"
+            class="border-4 border-dashed border-slate-300 rounded-xl p-12 text-center hover:border-blue-500 hover:bg-blue-50 transition-all cursor-pointer group relative"
+          >
+            <input
+              type="file"
+              id="file-input"
+              class="hidden"
+              accept=".hwp, .hwpx"
+            />
+
+            <div class="flex flex-col items-center space-y-4">
+              <div
+                class="p-4 bg-slate-100 rounded-full group-hover:bg-white transition-colors"
+              >
+                <i
+                  data-lucide="upload-cloud"
+                  class="w-12 h-12 text-slate-400 group-hover:text-blue-500"
+                ></i>
+              </div>
+
+              <div>
+                <p class="text-xl font-bold text-slate-700">
+                  파일을 여기에 드롭하세요
+                </p>
+                <p class="text-slate-500 text-sm mt-1">
+                  .hwp 또는 .hwpx 파일 지원
+                </p>
+              </div>
+
+              <div class="w-full border-t border-slate-200 my-4"></div>
+
+              <button
+                id="select-btn"
+                class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg shadow-lg hover:shadow-blue-500/30 transition-all flex items-center gap-2"
+              >
+                <i data-lucide="folder-search" class="w-5 h-5"></i>
+                PC에서 파일 찾기
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div id="process-view" class="hidden flex-col space-y-6 fade-in">
+          <div class="flex justify-between items-end">
+            <div>
+              <h3 class="text-lg font-bold text-slate-800">변환 진행 중...</h3>
+              <p id="current-task" class="text-sm text-slate-500">
+                문서 구조를 분석하고 있습니다.
+              </p>
+            </div>
+            <span id="progress-percent" class="text-2xl font-bold text-blue-600"
+              >0%</span
+            >
+          </div>
+
+          <div
+            class="w-full bg-slate-200 rounded-full h-4 overflow-hidden shadow-inner"
+          >
+            <div
+              id="progress-bar"
+              class="bg-gradient-to-r from-blue-500 to-blue-600 h-4 rounded-full transition-all duration-300 ease-out"
+              style="width: 0%"
+            ></div>
+          </div>
+
+          <div
+            class="bg-slate-900 rounded-lg p-4 shadow-inner border border-slate-700"
+          >
+            <div
+              class="flex items-center gap-2 mb-2 border-b border-slate-700 pb-2"
+            >
+              <div class="w-3 h-3 rounded-full bg-red-500"></div>
+              <div class="w-3 h-3 rounded-full bg-yellow-500"></div>
+              <div class="w-3 h-3 rounded-full bg-green-500"></div>
+              <span class="text-xs text-slate-400 ml-2">Console Output</span>
+            </div>
+            <div
+              id="log-terminal"
+              class="h-32 overflow-y-auto font-mono text-xs space-y-1 text-green-400"
+            >
+              <p class="text-slate-500">$ waiting for input...</p>
+            </div>
+          </div>
+        </div>
+
+        <div id="result-view" class="hidden text-center py-8 fade-in">
+          <div id="success-case" class="hidden space-y-6">
+            <div
+              class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto"
+            >
+              <i data-lucide="check" class="w-10 h-10 text-green-600"></i>
+            </div>
+            <div>
+              <h2 class="text-2xl font-bold text-slate-800">변환 완료!</h2>
+              <p class="text-slate-500 mt-2">
+                파일이 자동으로 다운로드되었습니다.
+              </p>
+            </div>
+            <button
+              onclick="location.reload()"
+              class="text-slate-500 hover:text-slate-800 underline decoration-slate-300 underline-offset-4 hover:decoration-slate-800 transition-all"
+            >
+              다른 파일 변환하기
+            </button>
+          </div>
+
+          <div id="error-case" class="hidden space-y-6">
+            <div
+              class="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto"
+            >
+              <i
+                data-lucide="alert-triangle"
+                class="w-10 h-10 text-red-600"
+              ></i>
+            </div>
+            <div>
+              <h2 class="text-2xl font-bold text-slate-800">변환 실패</h2>
+              <p
+                id="error-reason"
+                class="text-red-500 mt-2 font-medium bg-red-50 py-2 px-4 rounded inline-block"
+              >
+                알 수 없는 오류
+              </p>
+            </div>
+            <button
+              onclick="location.reload()"
+              class="bg-slate-800 text-white px-6 py-2 rounded-lg hover:bg-slate-900 transition"
+            >
+              다시 시도하기
+            </button>
+          </div>
+        </div>
+      </div>
     </main>
 
     <script>
-        // 아이콘 초기화
-        lucide.createIcons();
+      // 아이콘 초기화
+      lucide.createIcons();
 
-        // DOM 요소 가져오기
-        const dropZone = document.getElementById('drop-zone');
-        const fileInput = document.getElementById('file-input');
-        const selectBtn = document.getElementById('select-btn');
-        
-        const uploadView = document.getElementById('upload-view');
-        const processView = document.getElementById('process-view');
-        const resultView = document.getElementById('result-view');
-        
-        const progressBar = document.getElementById('progress-bar');
-        const progressPercent = document.getElementById('progress-percent');
-        const logTerminal = document.getElementById('log-terminal');
-        const currentTask = document.getElementById('current-task');
+      // DOM 요소 가져오기
+      const dropZone = document.getElementById("drop-zone");
+      const fileInput = document.getElementById("file-input");
+      const selectBtn = document.getElementById("select-btn");
 
-        // 로그 출력 함수
-        function log(msg, type = 'info') {
-            const p = document.createElement('p');
-            const timestamp = new Date().toLocaleTimeString('ko-KR', {hour12: false});
-            
-            if (type === 'error') p.className = "text-red-400";
-            else if (type === 'success') p.className = "text-blue-300";
-            
-            p.innerHTML = `<span class="opacity-50">[${timestamp}]</span> ${msg}`;
-            logTerminal.appendChild(p);
-            logTerminal.scrollTop = logTerminal.scrollHeight;
-        }
+      const uploadView = document.getElementById("upload-view");
+      const processView = document.getElementById("process-view");
+      const resultView = document.getElementById("result-view");
 
-        // 1. 드래그 앤 드롭 이벤트
-        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-            dropZone.addEventListener(eventName, preventDefaults, false);
+      const progressBar = document.getElementById("progress-bar");
+      const progressPercent = document.getElementById("progress-percent");
+      const logTerminal = document.getElementById("log-terminal");
+      const currentTask = document.getElementById("current-task");
+
+      // 로그 출력 함수
+      function log(msg, type = "info") {
+        const p = document.createElement("p");
+        const timestamp = new Date().toLocaleTimeString("ko-KR", {
+          hour12: false,
         });
 
-        function preventDefaults(e) {
-            e.preventDefault();
-            e.stopPropagation();
+        if (type === "error") p.className = "text-red-400";
+        else if (type === "success") p.className = "text-blue-300";
+
+        p.innerHTML = `<span class="opacity-50">[${timestamp}]</span> ${msg}`;
+        logTerminal.appendChild(p);
+        logTerminal.scrollTop = logTerminal.scrollHeight;
+      }
+
+      // 1. 드래그 앤 드롭 이벤트
+      ["dragenter", "dragover", "dragleave", "drop"].forEach((eventName) => {
+        dropZone.addEventListener(eventName, preventDefaults, false);
+      });
+
+      function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+
+      dropZone.addEventListener("dragover", () =>
+        dropZone.classList.add("border-blue-500", "bg-blue-50"),
+      );
+      dropZone.addEventListener("dragleave", () =>
+        dropZone.classList.remove("border-blue-500", "bg-blue-50"),
+      );
+
+      dropZone.addEventListener("drop", (e) => {
+        dropZone.classList.remove("border-blue-500", "bg-blue-50");
+        const files = e.dataTransfer.files;
+        handleFiles(files);
+      });
+
+      // 2. 버튼 클릭 이벤트
+      selectBtn.addEventListener("click", (e) => {
+        e.stopPropagation(); // 버블링 방지
+        fileInput.click();
+      });
+
+      fileInput.addEventListener("change", async (e) => {
+        const file = e.target.files[0];
+        const arrayBuffer = await file.arrayBuffer();
+        const uint8Array = new Uint8Array(arrayBuffer);
+
+        try {
+          const result = await wasm.convert_hwp_to_odt(uint8Array);
+
+          // 성공: result = { data, message, warnings }
+          log(`✓ ${result.message}`, "success");
+
+          if (result.warnings.length > 0) {
+            result.warnings.forEach((warning) => {
+              log(`⚠ Warning: ${warning}`, "warning");
+            });
+          }
+
+          const blob = new Blob([new Uint8Array(result.data)], {
+            type: "application/vnd.oasis.opendocument.text",
+          });
+          downloadFile(blob, file.name.replace(/\.[^/.]+$/, "") + ".odt");
+        } catch (error) {
+          // 에러: error 메시지 직접 출력
+          log(`✗ ${error}`, "error");
         }
+      });
 
-        dropZone.addEventListener('dragover', () => dropZone.classList.add('border-blue-500', 'bg-blue-50'));
-        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('border-blue-500', 'bg-blue-50'));
+      // 메인 핸들러
+      function handleFiles(files) {
+        if (files.length === 0) return;
+        const file = files[0];
 
-        dropZone.addEventListener('drop', (e) => {
-            dropZone.classList.remove('border-blue-500', 'bg-blue-50');
-            const files = e.dataTransfer.files;
-            handleFiles(files);
-        });
+        // 화면 전환 (Upload -> Process)
+        uploadView.classList.add("hidden");
+        processView.classList.remove("hidden");
 
-        // 2. 버튼 클릭 이벤트
-        selectBtn.addEventListener('click', (e) => { 
-            e.stopPropagation(); // 버블링 방지
-            fileInput.click(); 
-        });
-        
-        fileInput.addEventListener('change', () => handleFiles(fileInput.files));
+        log(`파일 감지됨: ${file.name}`);
+        log(`파일 크기: ${(file.size / 1024).toFixed(2)} KB`);
 
-        // 메인 핸들러
-        function handleFiles(files) {
-            if (files.length === 0) return;
-            const file = files[0];
-            
-            // 화면 전환 (Upload -> Process)
-            uploadView.classList.add('hidden');
-            processView.classList.remove('hidden');
-            
-            log(`파일 감지됨: ${file.name}`);
-            log(`파일 크기: ${(file.size / 1024).toFixed(2)} KB`);
+        startConversion(file);
+      }
 
-            startConversion(file);
+      // 3. 변환 로직 (Rust 연결 전 시뮬레이션)
+      async function startConversion(file) {
+        try {
+          // 확장자 체크
+          const ext = file.name.split(".").pop().toLowerCase();
+          if (ext !== "hwp" && ext !== "hwpx") {
+            throw new Error("지원하지 않는 확장자입니다. (.hwp, .hwpx Only)");
+          }
+
+          // [가짜 로딩] 실제로는 여기서 Rust Wasm 함수를 호출합니다.
+          // await init();
+          // rust_convert_function(buffer);
+
+          updateProgress(10, "파일 읽기 시작...");
+          const buffer = await file.arrayBuffer(); // 실제 바이너리 읽기
+
+          await sleep(500);
+          updateProgress(30, "Wasm 엔진 로드 중...");
+          log("Loading Rust WebAssembly module...");
+
+          await sleep(800);
+          updateProgress(60, "문서 구조 파싱 중...");
+          log("Parsing document structure (HWP5 Record/XML)...");
+
+          await sleep(800);
+          updateProgress(90, "ODT 파일 생성 중...");
+          log("Generating OpenDocument Text...");
+
+          await sleep(500);
+          updateProgress(100, "완료!");
+          log("변환 성공!", "success");
+
+          // 4. 다운로드 트리거
+          const newName = file.name.replace(/\.[^/.]+$/, "") + ".odt";
+          // 가짜 Blob (실제로는 Rust가 리턴한 Uint8Array를 넣어야 함)
+          const blob = new Blob([buffer], {
+            type: "application/vnd.oasis.opendocument.text",
+          });
+
+          downloadFile(blob, newName);
+
+          // 5. 결과 화면 전환
+          setTimeout(() => {
+            processView.classList.add("hidden");
+            resultView.classList.remove("hidden");
+            document.getElementById("success-case").classList.remove("hidden");
+          }, 1000);
+        } catch (err) {
+          log(`ERROR: ${err.message}`, "error");
+          setTimeout(() => {
+            processView.classList.add("hidden");
+            resultView.classList.remove("hidden");
+            const errDiv = document.getElementById("error-case");
+            errDiv.classList.remove("hidden");
+            document.getElementById("error-reason").innerText = err.message;
+          }, 1000);
         }
+      }
 
-        // 3. 변환 로직 (Rust 연결 전 시뮬레이션)
-        async function startConversion(file) {
-            try {
-                // 확장자 체크
-                const ext = file.name.split('.').pop().toLowerCase();
-                if (ext !== 'hwp' && ext !== 'hwpx') {
-                    throw new Error("지원하지 않는 확장자입니다. (.hwp, .hwpx Only)");
-                }
+      // 유틸리티
+      function updateProgress(percent, msg) {
+        progressBar.style.width = `${percent}%`;
+        progressPercent.innerText = `${percent}%`;
+        if (msg) currentTask.innerText = msg;
+      }
 
-                // [가짜 로딩] 실제로는 여기서 Rust Wasm 함수를 호출합니다.
-                // await init(); 
-                // rust_convert_function(buffer);
+      function sleep(ms) {
+        return new Promise((resolve) => setTimeout(resolve, ms));
+      }
 
-                updateProgress(10, "파일 읽기 시작...");
-                const buffer = await file.arrayBuffer(); // 실제 바이너리 읽기
-                
-                await sleep(500);
-                updateProgress(30, "Wasm 엔진 로드 중...");
-                log("Loading Rust WebAssembly module...");
-                
-                await sleep(800);
-                updateProgress(60, "문서 구조 파싱 중...");
-                log("Parsing document structure (HWP5 Record/XML)...");
-                
-                await sleep(800);
-                updateProgress(90, "ODT 파일 생성 중...");
-                log("Generating OpenDocument Text...");
-
-                await sleep(500);
-                updateProgress(100, "완료!");
-                log("변환 성공!", "success");
-
-                // 4. 다운로드 트리거
-                const newName = file.name.replace(/\.[^/.]+$/, "") + ".odt";
-                // 가짜 Blob (실제로는 Rust가 리턴한 Uint8Array를 넣어야 함)
-                const blob = new Blob([buffer], {type: "application/vnd.oasis.opendocument.text"});
-                
-                downloadFile(blob, newName);
-
-                // 5. 결과 화면 전환
-                setTimeout(() => {
-                    processView.classList.add('hidden');
-                    resultView.classList.remove('hidden');
-                    document.getElementById('success-case').classList.remove('hidden');
-                }, 1000);
-
-            } catch (err) {
-                log(`ERROR: ${err.message}`, 'error');
-                setTimeout(() => {
-                    processView.classList.add('hidden');
-                    resultView.classList.remove('hidden');
-                    const errDiv = document.getElementById('error-case');
-                    errDiv.classList.remove('hidden');
-                    document.getElementById('error-reason').innerText = err.message;
-                }, 1000);
-            }
-        }
-
-        // 유틸리티
-        function updateProgress(percent, msg) {
-            progressBar.style.width = `${percent}%`;
-            progressPercent.innerText = `${percent}%`;
-            if(msg) currentTask.innerText = msg;
-        }
-
-        function sleep(ms) {
-            return new Promise(resolve => setTimeout(resolve, ms));
-        }
-
-        function downloadFile(blob, filename) {
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.style.display = 'none';
-            a.href = url;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            window.URL.revokeObjectURL(url);
-        }
+      function downloadFile(blob, filename) {
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.style.display = "none";
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+      }
     </script>
-</body>
+  </body>
 </html>
